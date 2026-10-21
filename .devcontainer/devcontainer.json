@@ -1,0 +1,1 @@
+{"image":"mcr.microsoft.com/devcontainers/universal:2","name":"PC-Free (auto setup)","postCreateCommand":"bash .devcontainer/start.sh","postStartCommand":"bash .devcontainer/start.sh"}
