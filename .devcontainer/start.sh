@@ -62,7 +62,7 @@ if [ "$need_iso" = "1" ]; then
     7z x "$XLITE_7Z" -o./xlite-extract || exit 1
   else
     python3 -m pip install --user --break-system-externally-managed py7zr 2>/dev/null || python3 -m pip install --user py7zr || exit 1
-    python3 -m py7zr x "$XLITE_7Z" -o./xlite-extract || exit 1
+    python3 -c "import py7zr; py7zr.SevenZipFile('$XLITE_7Z', 'r').extractall(path='./xlite-extract')" || exit 1
   fi
   found_iso=$(find ./xlite-extract -name '*.iso' | head -1)
   if [ -z "$found_iso" ]; then
