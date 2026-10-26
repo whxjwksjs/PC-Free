@@ -80,6 +80,12 @@ if [ "$need_iso" = "1" ]; then
   echo "xlite.iso ready ($actual_size bytes)"
 fi
 
+# The .7z is 2.4 GB of codespace disk that is never needed again: start.sh
+# re-downloads it (curl -C - resumes) if the ISO ever goes missing. Delete
+# it now so the 32 GB codespace keeps room for the VM's own writes.
+rm -f "$XLITE_7Z"
+echo "deleted $XLITE_7Z after successful extraction"
+
 # Start Windows (first run installs it, ~10-15 min).
 # NOTE: windows11.yml binds ./xlite.iso to /custom.iso, so dockurr uses it
 # and ignores VERSION. windows10.yml (old Win10 setup) is kept for history

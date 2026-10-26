@@ -1,6 +1,13 @@
 @echo off
-REM Windows X-Lite 26H1 first-boot setup v2 (dockurr copies ./oem to C:\OEM,
+REM Windows X-Lite 26H1 first-boot setup v4 (dockurr copies ./oem to C:\OEM,
 REM then runs install.bat as the last step of automatic installation).
+REM v4 changes (2026-10-25, lean 4-core rebuild): one-time first-logon script
+REM sets a fixed 1 GB pagefile (system-managed pagefile on 8 GB RAM eats
+REM ~10 GB; the download reuses the freed blocks), then reboots once and
+REM deletes itself. All winget installs pin --source winget (the msstore
+REM source threw a cert-mismatch error on the 2026-10-25 build).
+REM Note: the pagefile applies at first logon, AFTER install.bat finishes,
+REM so it is not part of the setup-done gate; verify it separately.
 REM v2 changes (2026-10-25, for future installs): Brave is the primary browser
 REM (winget Brave.Brave), Edge stays as fallback; FDM fallback installer runs
 REM truly silent (Inno switches, verified); extension force-install keys are
@@ -33,7 +40,7 @@ if %WINGET_OK%==0 echo [%DATE% %TIME%] winget still missing, using fallbacks bel
 
 REM --- Browser: Brave first, Edge as fallback ---
 if %WINGET_OK%==1 echo [%DATE% %TIME%] winget installing Brave >> C:\OEM\setup-log.txt
-if %WINGET_OK%==1 winget install --id Brave.Brave -e --silent --accept-source-agreements --accept-package-agreements >> C:\OEM\setup-log.txt 2>&1
+if %WINGET_OK%==1 winget install --id Brave.Brave -e --silent --source winget --accept-source-agreements --accept-package-agreements >> C:\OEM\setup-log.txt 2>&1
 set BRAVE_OK=0
 if exist "%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe" set BRAVE_OK=1
 if exist "%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe" set BRAVE_OK=1
@@ -44,7 +51,7 @@ if %BRAVE_OK%==0 for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-C
 if defined EDGESETUP echo [%DATE% %TIME%] installing included Edge installer: %EDGESETUP% >> C:\OEM\setup-log.txt
 if defined EDGESETUP "%EDGESETUP%" /silent /install >> C:\OEM\setup-log.txt 2>&1
 if %BRAVE_OK%==0 if %WINGET_OK%==1 echo [%DATE% %TIME%] winget installing Edge >> C:\OEM\setup-log.txt
-if %BRAVE_OK%==0 if %WINGET_OK%==1 winget install --id Microsoft.Edge --silent --accept-source-agreements --accept-package-agreements >> C:\OEM\setup-log.txt 2>&1
+if %BRAVE_OK%==0 if %WINGET_OK%==1 winget install --id Microsoft.Edge --silent --source winget --accept-source-agreements --accept-package-agreements >> C:\OEM\setup-log.txt 2>&1
 REM Final browser check (explicit paths, not PATH lookup).
 set BROWSER_OK=0
 if exist "%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe" set BROWSER_OK=1
@@ -61,7 +68,7 @@ if %BROWSER_OK%==1 if %EDGE_OK%==0 powershell -NoProfile -Command "$s = (New-Obj
 
 REM --- Free Download Manager (silent) ---
 if %WINGET_OK%==1 echo [%DATE% %TIME%] winget installing FDM >> C:\OEM\setup-log.txt
-if %WINGET_OK%==1 winget install --id FreeDownloadManager.FreeDownloadManager --silent --accept-source-agreements --accept-package-agreements >> C:\OEM\setup-log.txt 2>&1
+if %WINGET_OK%==1 winget install --id FreeDownloadManager.FreeDownloadManager --silent --source winget --accept-source-agreements --accept-package-agreements >> C:\OEM\setup-log.txt 2>&1
 set FDM_OK=0
 if exist "%ProgramFiles%\FreeDownloadManager\fdm.exe" set FDM_OK=1
 if exist "%ProgramFiles(x86)%\FreeDownloadManager\fdm.exe" set FDM_OK=1
@@ -109,6 +116,29 @@ echo timeout /t 10 /nobreak ^>nul >> "%ProgramData%\Microsoft\Windows\Start Menu
 echo taskkill /IM StartAllBackCfg.exe /F ^>nul 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
 echo del "%%~f0" >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
 echo [%DATE% %TIME%] StartAllBack welcome closer installed to all-users Startup >> C:\OEM\setup-log.txt
+
+REM --- Small fixed pagefile: one-time script at first logon ---
+REM System-managed pagefile on 8 GB RAM eats ~10 GB of the 32 GB codespace
+REM disk and helped fill it during the 2026-10-25 Part 2 download. This drops
+REM a one-time script into the all-users Startup folder: at first logon it
+REM sets a fixed 1 GB pagefile (plenty for a browser + downloader VM),
+REM deletes itself, and reboots once so the new size takes effect. The
+REM download reuses the freed blocks in the sparse disk image. The script
+REM logs to C:\OEM\pagefile-log.txt. Runs once only.
+mkdir "C:\ProgramData\pcfree-setup" >> C:\OEM\setup-log.txt 2>&1
+echo $cs = Get-CimInstance Win32_ComputerSystem > "C:\ProgramData\pcfree-setup\set-pagefile.ps1"
+echo $cs.AutomaticManagedPagefile = $false >> "C:\ProgramData\pcfree-setup\set-pagefile.ps1"
+echo Set-CimInstance -InputObject $cs >> "C:\ProgramData\pcfree-setup\set-pagefile.ps1"
+echo $pf = Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue >> "C:\ProgramData\pcfree-setup\set-pagefile.ps1"
+echo if ($pf) { $pf.InitialSize = 1024; $pf.MaximumSize = 1024; Set-CimInstance -InputObject $pf } else { New-CimInstance -ClassName Win32_PageFileSetting -Arguments @{Name='C:\pagefile.sys'; InitialSize=1024; MaximumSize=1024} } >> "C:\ProgramData\pcfree-setup\set-pagefile.ps1"
+echo Get-CimInstance Win32_PageFileSetting ^| Format-List Name,InitialSize,MaximumSize ^| Out-File C:\OEM\pagefile-log.txt -Append >> "C:\ProgramData\pcfree-setup\set-pagefile.ps1"
+echo @echo off > "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\set-pagefile-once.cmd"
+echo REM One-time pagefile shrink, dropped by C:\OEM\install.bat. Sets a fixed 1 GB pagefile, then reboots once and deletes itself. >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\set-pagefile-once.cmd"
+echo powershell -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\pcfree-setup\set-pagefile.ps1" ^>^> C:\OEM\pagefile-log.txt 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\set-pagefile-once.cmd"
+echo del "C:\ProgramData\pcfree-setup\set-pagefile.ps1" >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\set-pagefile-once.cmd"
+echo del "%%~f0" >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\set-pagefile-once.cmd"
+echo shutdown /r /t 30 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\set-pagefile-once.cmd"
+echo [%DATE% %TIME%] pagefile once-script installed to all-users Startup >> C:\OEM\setup-log.txt
 
 REM --- Verification: confirm everything, gate the marker on it ---
 echo [%DATE% %TIME%] verification >> C:\OEM\setup-log.txt
