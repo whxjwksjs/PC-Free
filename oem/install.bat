@@ -82,6 +82,34 @@ REM   uBlock Origin Lite cimighlppcgcoapaliogpjjdehbnofhn, FDM ahmpjcflkgiildlgi
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist" /v "1" /t REG_SZ /d "cimighlppcgcoapaliogpjjdehbnofhn;https://edge.microsoft.com/extensionwebstorebase/v1/crx" /f >> C:\OEM\setup-log.txt 2>&1
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist" /v "2" /t REG_SZ /d "ahmpjcflkgiildlgicmcieglgoilbfdp;https://clients2.google.com/service/update2/crx" /f >> C:\OEM\setup-log.txt 2>&1
 
+REM --- StartAllBack welcome: one-time closer at first logon ---
+REM X-Lite bundles StartAllBack, whose first-run welcome window ("Where do you
+REM want to go today?") blocks the desktop until someone picks a layout. There
+REM is no documented registry value to suppress it, so instead this drops a
+REM one-time script into the all-users Startup folder. At first logon it tries
+REM every 10s for ~60s to close the StartAllBack configurator process
+REM (StartAllBackCfg.exe, verified as the config app's process name), then
+REM deletes itself. StartAllBack itself stays installed with defaults; only
+REM the blocking welcome window is closed. Best-effort: if X-Lite's welcome
+REM is hosted elsewhere, the script harmlessly does nothing and one manual
+REM click on the default still closes it.
+echo @echo off > "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo REM One-time StartAllBack welcome closer, dropped by C:\OEM\install.bat. Deletes itself after running. >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo timeout /t 10 /nobreak ^>nul >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo taskkill /IM StartAllBackCfg.exe /F ^>nul 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo timeout /t 10 /nobreak ^>nul >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo taskkill /IM StartAllBackCfg.exe /F ^>nul 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo timeout /t 10 /nobreak ^>nul >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo taskkill /IM StartAllBackCfg.exe /F ^>nul 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo timeout /t 10 /nobreak ^>nul >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo taskkill /IM StartAllBackCfg.exe /F ^>nul 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo timeout /t 10 /nobreak ^>nul >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo taskkill /IM StartAllBackCfg.exe /F ^>nul 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo timeout /t 10 /nobreak ^>nul >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo taskkill /IM StartAllBackCfg.exe /F ^>nul 2^>^&1 >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo del "%%~f0" >> "%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp\close-startallback-welcome.cmd"
+echo [%DATE% %TIME%] StartAllBack welcome closer installed to all-users Startup >> C:\OEM\setup-log.txt
+
 REM --- Verification: confirm everything, gate the marker on it ---
 echo [%DATE% %TIME%] verification >> C:\OEM\setup-log.txt
 set VERIFY_FAIL=0
